@@ -1,0 +1,38 @@
+function [uti,m3]=uti(x)
+    sigma1 = evalin('base', 'sigma1');
+    b1 = evalin('base', 'b1');
+    sigma2 = evalin('base', 'sigma2');
+    b2 = evalin('base', 'b2');
+    sigma3 = evalin('base', 'sigma3');
+    b3 = evalin('base', 'b3');
+    X1 = evalin('base', 'X1');
+    Y1 = evalin('base', 'Y1');
+    X2 = evalin('base', 'X2');
+    Y2 = evalin('base', 'Y2');
+    X3 = evalin('base', 'X3');
+    Y3 = evalin('base', 'Y3');
+    [N1,~]=size(X1);
+    [N2,~]=size(X2);
+    [N3,~]=size(X3);
+    H = evalin('base', 'H');
+    V = evalin('base', 'V');
+    beta = evalin('base', 'beta');
+    
+    t=zeros(N1+N2+N3,1);
+    for i=1:N1
+        v=sigma1.*exp(-b1.*(norm(x-X1(i,:)))^2); 
+        t(i,1)=v;
+    end
+    for i=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-x))^2)+sigma2.*exp(-b2.*(norm(X2(i-N1,:)-x))^2);
+        t(i,1)=v;
+    end
+    for i=N1+N2+1:N1+N2+N3
+        v=sigma1.*exp(-b1.*(norm(X3(i-N1-N2,:)-x))^2)+sigma2.*exp(-b2.*(norm(X3(i-N1-N2,:)-x))^2)+sigma3.*exp(-b3.*(norm(X3(i-N1-N2,:)-x))^2);
+        t(i,1)=v;
+    end
+    m3=[1,1,1]*beta+t'*pinv(V)*([Y1;Y2;Y3]-H*beta);
+    c3=sigma1+sigma2+sigma3-[1,1,1,t']*pinv([zeros(3,3),H';H,V])*[1,1,1,t']';
+    c3=sqrt(c3);
+    uti=m3+c3;
+end
