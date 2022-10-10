@@ -1,0 +1,253 @@
+x0=[0.11,0.11];
+lb=[0.1,0.1];
+ub=[20,20];
+
+fun1=@siran1;
+% options = optimset('MaxFunEvals',2e7);
+% options.OutputFcn = @custom_stop_fun;
+xf = ga(fun1,2,[],[],[],[],lb,ub);
+sigma1=xf(1);
+b1=xf(2);
+
+fun2=@siran2;
+% options = optimset('MaxFunEvals',2e7);
+% options.OutputFcn = @custom_stop_fun;
+xff = ga(fun2,2,[],[],[],[],lb,ub);
+sigma2=xff(1);
+b2=xff(2);
+
+fun3=@siran3;
+% options = optimset('MaxFunEvals',2e7);
+% options.OutputFcn = @custom_stop_fun;
+xfff = ga(fun3,2,[],[],[],[],lb,ub);
+sigma3=xfff(1);
+b3=xfff(2);
+
+[N1,~]=size(X1);
+[N2,~]=size(X2);
+[N3,~]=size(X3);
+H=ones(N1+N2+N3,3);
+H(1:N1,2)=zeros(N1,1);
+H(1:N1+N2,3)=zeros(N1+N2,1);
+V=zeros(N1+N2+N3,N1+N2+N3);
+%V(1,1)
+for i=1:N1
+    for j=1:N1
+        v=sigma1.*exp(-b1.*(norm(X1(i,:)-X1(j,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(1,2)
+for i=1:N1
+    for j=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X1(i,:)-X2(j-N1,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(1,3)
+for i=1:N1
+    for j=N1+N2+1:N1+N2+N3
+        v=sigma1.*exp(-b1.*(norm(X1(i,:)-X3(j-N1-N2,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(2,1)
+for i=N1+1:N1+N2
+    for j=1:N1
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-X1(j,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(2,2)
+for i=N1+1:N1+N2
+    for j=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-X2(j-N1,:)))^2)+sigma2.*exp(-b2.*(norm(X2(i-N1,:)-X2(j-N1,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(2,3)
+for i=N1+1:N1+N2
+    for j=N1+N2+1:N1+N2+N3
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-X3(j-N1-N2,:)))^2)+sigma2.*exp(-b2.*(norm(X2(i-N1,:)-X3(j-N1-N2,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(3,1)
+for i=N1+N2+1:N1+N2+N3
+    for j=1:N1
+        v=sigma1.*exp(-b1.*(norm(X3(i-N1-N2,:)-X1(j,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(3,2)
+for i=N1+N2+1:N1+N2+N3
+    for j=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X2(j-N1,:)-X3(i-N1-N2,:)))^2)+sigma2.*exp(-b2.*(norm(X2(j-N1,:)-X3(i-N1-N2,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(3,3)
+for i=N1+N2+1:N1+N2+N3
+    for j=N1+N2+1:N1+N2+N3
+        v=sigma1.*exp(-b1.*(norm(X3(i-N1-N2,:)-X3(j-N1-N2,:)))^2)+sigma2.*exp(-b2.*(norm(X3(i-N1-N2,:)-X3(j-N1-N2,:)))^2)+sigma3.*exp(-b3.*(norm(X3(i-N1-N2,:)-X3(j-N1-N2,:)))^2);
+        V(i,j)=v;
+    end
+end
+    V=V+2^(-40).*eye(N1+N2+N3);
+
+    beta=pinv(H'*pinv(V)*H)*H'*pinv(V)*[Y1;Y2;Y3];    
+
+function stop = custom_stop_fun(~, optimValues, ~)
+if optimValues.fval < 10
+    stop = true;
+else
+    stop = false;
+end
+end
+
+function [siran1,sigma1] = siran1(can1)
+ X1= evalin('base', 'X1');
+ Y1= evalin('base', 'Y1');
+[N1,~]=size(X1);
+H=ones(N1,1);
+V=zeros(N1,N1);
+for i=1:N1
+    for j=1:N1
+        v=can1(1).*exp(-can1(2).*(norm(X1(i,:)-X1(j,:))).^2);
+        V(i,j)=v;
+    end
+end
+V=V+2^(-40).*eye(N1);
+C=chol(V,'lower');
+Ht=pinv(C)*Y1;
+[Q,G]=qr(Ht,0);
+Beta=pinv(G)*Q'*pinv(C)*Y1;
+sigma1=(pinv(C)*Y1-Ht*Beta)'*(pinv(C)*Y1-Ht*Beta)/N1;
+siran1=log(det(V))+N1*log(sigma1);
+end
+
+function [siran2] = siran2(can2)
+ X1= evalin('base', 'X1');
+ Y1= evalin('base', 'Y1');
+ X2= evalin('base', 'X2');
+ Y2= evalin('base', 'Y2');
+ sigma1= evalin('base', 'sigma1');
+ b1= evalin('base', 'b1');
+[N1,n]=size(X1);
+[N2,~]=size(X2);
+H=ones(N1+N2,2);
+H(1:N1,2)=zeros(N1,1);
+V=zeros(N1+N2,N1+N2);
+for i=1:N1
+    for j=1:N1
+        v=sigma1.*exp(-b1.*(norm(X1(i,:)-X1(j,:)))^2);
+        V(i,j)=v;
+    end
+end
+for i=1:N1
+    for j=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X1(i,:)-X2(j-N1,:)))^2);
+        V(i,j)=v;
+    end
+end
+for i=N1+1:N1+N2
+    for j=1:N1
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-X1(j,:)))^2);
+        V(i,j)=v;
+    end
+end
+for i=N1+1:N1+N2
+    for j=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-X2(j-N1,:)))^2)+can2(1).*exp(-can2(2).*(norm(X2(i-N1,:)-X2(j-N1,:)))^2);
+        V(i,j)=v;
+    end
+end
+V=V+2^(-40).*eye(N1+N2);
+beta=pinv(H'*pinv(V)*H)*H'*pinv(V)*[Y1;Y2];
+siran2=-1/((2*pi)^(n/2)*det(V)^(1/2))*exp(-([Y1;Y2]-H*beta)'*pinv(V)*([Y1;Y2]-H*beta)/2);
+end
+
+function [siran3] = siran3(can3)
+ X1= evalin('base', 'X1');
+ Y1= evalin('base', 'Y1');
+ X2= evalin('base', 'X2');
+ Y2= evalin('base', 'Y2');
+ X3= evalin('base', 'X3');
+ Y3= evalin('base', 'Y3');
+ sigma1= evalin('base', 'sigma1');
+ b1= evalin('base', 'b1');
+ sigma2= evalin('base', 'sigma2');
+ b2= evalin('base', 'b2');
+[N1,n]=size(X1);
+[N2,~]=size(X2);
+[N3,~]=size(X3);
+H=ones(N1+N2+N3,3);
+H(1:N1,2)=zeros(N1,1);
+H(1:N1+N2,3)=zeros(N1+N2,1);
+V=zeros(N1+N2+N3,N1+N2+N3);
+%V(1,1)
+for i=1:N1
+    for j=1:N1
+        v=sigma1.*exp(-b1.*(norm(X1(i,:)-X1(j,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(1,2)
+for i=1:N1
+    for j=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X1(i,:)-X2(j-N1,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(1,3)
+for i=1:N1
+    for j=N1+N2+1:N1+N2+N3
+        v=sigma1.*exp(-b1.*(norm(X1(i,:)-X3(j-N1-N2,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(2,1)
+for i=N1+1:N1+N2
+    for j=1:N1
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-X1(j,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(2,2)
+for i=N1+1:N1+N2
+    for j=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-X2(j-N1,:)))^2)+sigma2.*exp(-b2.*(norm(X2(i-N1,:)-X2(j-N1,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(2,3)
+for i=N1+1:N1+N2
+    for j=N1+N2+1:N1+N2+N3
+        v=sigma1.*exp(-b1.*(norm(X2(i-N1,:)-X3(j-N1-N2,:)))^2)+sigma2.*exp(-b2.*(norm(X2(i-N1,:)-X3(j-N1-N2,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(3,1)
+for i=N1+N2+1:N1+N2+N3
+    for j=1:N1
+        v=sigma1.*exp(-b1.*(norm(X3(i-N1-N2,:)-X1(j,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(3,2)
+for i=N1+N2+1:N1+N2+N3
+    for j=N1+1:N1+N2
+        v=sigma1.*exp(-b1.*(norm(X2(j-N1,:)-X3(i-N1-N2,:)))^2)+sigma2.*exp(-b2.*(norm(X2(j-N1,:)-X3(i-N1-N2,:)))^2);
+        V(i,j)=v;
+    end
+end
+%V(3,3)
+for i=N1+N2+1:N1+N2+N3
+    for j=N1+N2+1:N1+N2+N3
+        v=sigma1.*exp(-b1.*(norm(X3(i-N1-N2,:)-X3(j-N1-N2,:)))^2)+sigma2.*exp(-b2.*(norm(X3(i-N1-N2,:)-X3(j-N1-N2,:)))^2)+can3(1).*exp(-can3(2).*(norm(X3(i-N1-N2,:)-X3(j-N1-N2,:)))^2);
+        V(i,j)=v;
+    end
+end
+V=V+2^(-40).*eye(N1+N2+N3);
+beta=pinv(H'*pinv(V)*H)*H'*pinv(V)*[Y1;Y2;Y3];
+siran3=-1/((2*pi)^(n/3)*det(V)^(1/2))*exp(-([Y1;Y2;Y3]-H*beta)'*pinv(V)*([Y1;Y2;Y3]-H*beta)/3);
